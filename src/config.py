@@ -1,7 +1,8 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# Force reload of .env file
+load_dotenv(override=True)
 
 
 class Settings:
