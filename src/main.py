@@ -1,7 +1,17 @@
 import logging
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    ConversationHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
+)
 from config import settings
+from handlers.start import start_command, help_command
+from handlers.auth import verify_password_handler, cancel_handler, AWAITING_PASSWORD
+from middleware.auth_middleware import auth_filter
 
 
 logging.basicConfig(
@@ -11,54 +21,54 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle the /start command"""
-    user = update.effective_user
-    await update.message.reply_text(
-        f"Hello {user.first_name}! 👋\n\n"
-        "Welcome to the Ariel CS 2026 Bot.\n\n"
-        "This bot helps Computer Science students with:\n"
-        "📚 Answering questions about course materials\n"
-        "🔍 Solving math problems from images\n\n"
-        "Use /help to see available commands."
-    )
-
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle the /help command"""
-    help_text = """
-🤖 *Ariel CS 2026 Bot - Help*
-
-*Commands:*
-/start - Start the bot
-/help - Show this help message
-
-*Features:*
-• Ask questions about course materials
-• Upload images of math problems for solutions
-• Get answers with source citations
-
-More features coming soon!
-    """
-    await update.message.reply_text(help_text, parse_mode='Markdown')
-
-
 def main():
-    """Start the bot in polling mode"""
+    """Start the bot in polling mode with authentication system."""
+    # Validate configuration
     if not settings.TELEGRAM_TOKEN:
         logger.error("TELEGRAM_TOKEN not found in environment variables!")
         logger.error("Please create a .env file based on .env.example")
         return
 
+    if not settings.BOT_PASSWORD:
+        logger.error("BOT_PASSWORD not found in environment variables!")
+        logger.error("Please set BOT_PASSWORD in your .env file")
+        return
+
     logger.info("Creating bot application...")
     application = Application.builder().token(settings.TELEGRAM_TOKEN).build()
 
-    # Register command handlers
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
+    # Authentication ConversationHandler (must be registered first!)
+    auth_conversation = ConversationHandler(
+        entry_points=[CommandHandler("start", start_command)],
+        states={
+            AWAITING_PASSWORD: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    verify_password_handler
+                )
+            ]
+        },
+        fallbacks=[CommandHandler("cancel", cancel_handler)],
+        name="authentication",
+        persistent=False
+    )
+
+    # Register handlers (ORDER MATTERS!)
+    application.add_handler(auth_conversation)  # Must be first
+    application.add_handler(CommandHandler("help", help_command, filters=auth_filter))
+
+    # Future handlers for Phase 3+ will go here:
+    # application.add_handler(MessageHandler(
+    #     auth_filter & filters.TEXT & ~filters.COMMAND,
+    #     question_handler
+    # ))
+    # application.add_handler(MessageHandler(
+    #     auth_filter & filters.PHOTO,
+    #     image_handler
+    # ))
 
     # Start polling
-    logger.info("Bot is running in polling mode...")
+    logger.info("Bot is running in polling mode with authentication...")
     logger.info("Press Ctrl+C to stop the bot")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
