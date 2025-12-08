@@ -49,8 +49,8 @@ def query_file_search(client: genai.Client, store_name: str, question: str) -> d
         contents=question,
         config=types.GenerateContentConfig(
             tools=[types.Tool(
-                file_search_tool=types.FileSearchTool(
-                    file_search_store=store_name
+                file_search=types.FileSearch(
+                    file_search_store_names=[store_name]
                 )
             )],
             temperature=0.3
@@ -64,22 +64,25 @@ def query_file_search(client: genai.Client, store_name: str, question: str) -> d
         'sources': []
     }
 
-    # Extract grounding metadata
-    if hasattr(response, 'grounding_metadata') and response.grounding_metadata:
-        result['has_grounding'] = True
+    # Extract grounding metadata from candidates
+    if response.candidates and len(response.candidates) > 0:
+        candidate = response.candidates[0]
+        if hasattr(candidate, 'grounding_metadata') and candidate.grounding_metadata:
+            result['has_grounding'] = True
+            grounding_metadata = candidate.grounding_metadata
 
-        if hasattr(response.grounding_metadata, 'grounding_chunks'):
-            chunks = response.grounding_metadata.grounding_chunks
-            for chunk in chunks:
-                if hasattr(chunk, 'retrieved_context'):
-                    ctx = chunk.retrieved_context
-                    source = {}
-                    if hasattr(ctx, 'title'):
-                        source['title'] = ctx.title
-                    if hasattr(ctx, 'document_name'):
-                        source['document'] = ctx.document_name
-                    if source:
-                        result['sources'].append(source)
+            if hasattr(grounding_metadata, 'grounding_chunks'):
+                chunks = grounding_metadata.grounding_chunks
+                for chunk in chunks:
+                    if hasattr(chunk, 'retrieved_context'):
+                        ctx = chunk.retrieved_context
+                        source = {}
+                        if hasattr(ctx, 'title'):
+                            source['title'] = ctx.title
+                        if hasattr(ctx, 'document_name'):
+                            source['document'] = ctx.document_name
+                        if source:
+                            result['sources'].append(source)
 
     return result
 

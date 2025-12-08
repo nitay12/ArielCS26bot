@@ -11,6 +11,7 @@ from telegram.ext import (
 from config import settings
 from handlers.start import start_command, help_command
 from handlers.auth import verify_password_handler, cancel_handler, AWAITING_PASSWORD
+from handlers.question import question_handler
 from middleware.auth_middleware import auth_filter
 
 
@@ -57,11 +58,13 @@ def main():
     application.add_handler(auth_conversation)  # Must be first
     application.add_handler(CommandHandler("help", help_command, filters=auth_filter))
 
-    # Future handlers for Phase 3+ will go here:
-    # application.add_handler(MessageHandler(
-    #     auth_filter & filters.TEXT & ~filters.COMMAND,
-    #     question_handler
-    # ))
+    # Question handler (RAG Q&A)
+    application.add_handler(MessageHandler(
+        auth_filter & filters.TEXT & ~filters.COMMAND,
+        question_handler
+    ))
+
+    # Future handlers for Phase 4+ will go here:
     # application.add_handler(MessageHandler(
     #     auth_filter & filters.PHOTO,
     #     image_handler
