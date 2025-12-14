@@ -17,7 +17,7 @@ SUPPORTED_EXTENSIONS = {'.pdf', '.md', '.docx', '.txt'}
 
 def scan_course_materials(root_dir: Path) -> List[Tuple[Path, str]]:
     """
-    Scan directory tree for course material files.
+    Scan directory tree for course material files in 'to_upload' subdirectories.
 
     Args:
         root_dir: Path to data/course_materials/ directory
@@ -25,12 +25,13 @@ def scan_course_materials(root_dir: Path) -> List[Tuple[Path, str]]:
     Returns:
         List of (file_path, course_name) tuples
         Example: [
-            (Path('.../calculus_1/week1.md'), 'calculus_1'),
-            (Path('.../set_theory_logic/lecture1.pdf'), 'set_theory_logic')
+            (Path('.../calculus_1/to_upload/week1.md'), 'calculus_1'),
+            (Path('.../set_theory_logic/to_upload/lecture1.pdf'), 'set_theory_logic')
         ]
 
-    The course name is extracted from the parent directory name.
+    The course name is extracted from the parent directory of the 'to_upload' folder.
     Hidden files and directories (starting with '.') are skipped.
+    Only files in 'to_upload' subdirectories are included.
     """
     if not root_dir.exists():
         logger.warning(f"Directory does not exist: {root_dir}")
@@ -42,32 +43,42 @@ def scan_course_materials(root_dir: Path) -> List[Tuple[Path, str]]:
 
     files = []
 
-    # Recursively scan for files
-    for file_path in root_dir.rglob('*'):
-        # Skip if not a file
-        if not file_path.is_file():
+    # Scan for 'to_upload' directories in each course folder
+    for course_dir in root_dir.iterdir():
+        # Skip files in root
+        if not course_dir.is_dir():
             continue
 
-        # Skip hidden files
-        if any(part.startswith('.') for part in file_path.parts):
+        # Skip hidden directories
+        if course_dir.name.startswith('.'):
             continue
 
-        # Check if extension is supported
-        if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
-            logger.debug(f"Skipping unsupported file type: {file_path}")
+        course_name = course_dir.name
+        to_upload_dir = course_dir / 'to_upload'
+
+        # Skip if no to_upload directory exists
+        if not to_upload_dir.exists() or not to_upload_dir.is_dir():
+            logger.debug(f"No to_upload directory for course: {course_name}")
             continue
 
-        # Extract course name from parent directory
-        # Skip if file is directly in root (no course directory)
-        if file_path.parent == root_dir:
-            logger.warning(f"Skipping file in root directory: {file_path.name}")
-            continue
+        # Scan files in to_upload directory
+        for file_path in to_upload_dir.rglob('*'):
+            # Skip if not a file
+            if not file_path.is_file():
+                continue
 
-        course_name = file_path.parent.name
+            # Skip hidden files
+            if any(part.startswith('.') for part in file_path.parts):
+                continue
 
-        files.append((file_path, course_name))
+            # Check if extension is supported
+            if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                logger.debug(f"Skipping unsupported file type: {file_path}")
+                continue
 
-    logger.info(f"Found {len(files)} files in {root_dir}")
+            files.append((file_path, course_name))
+
+    logger.info(f"Found {len(files)} files in to_upload directories")
 
     return files
 

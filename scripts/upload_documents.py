@@ -15,6 +15,7 @@ Usage:
 import sys
 import asyncio
 import logging
+import shutil
 from pathlib import Path
 
 # Add src to path for imports
@@ -82,6 +83,22 @@ async def main():
     logger.info(f"Found {len(files)} files to upload")
     print()
 
+    # Check current store status
+    try:
+        store_info = client.file_search_stores.get(name=settings.FILE_SEARCH_STORE_NAME)
+        current_docs = store_info.active_documents_count or 0
+        if current_docs > 0:
+            print(f"WARNING: Store currently has {current_docs} documents")
+            print("         Running this script will add duplicates!")
+            print()
+            print("   To avoid duplicates:")
+            print("   1. Clean the store first:")
+            print("      python scripts/cleanup_duplicates.py --delete-all")
+            print("   2. Or skip files that are already uploaded (coming soon)")
+            print()
+    except Exception as e:
+        logger.warning(f"Could not check store status: {e}")
+
     # Display breakdown by course
     courses = {}
     for _, course in files:
@@ -128,6 +145,32 @@ async def main():
             )
 
             results.append(result)
+
+            # Move file to 'uploaded' directory if successful
+            if result['status'] == 'success':
+                try:
+                    # Get the course directory
+                    course_dir = materials_dir / course
+                    uploaded_dir = course_dir / 'uploaded'
+
+                    # Create 'uploaded' directory if it doesn't exist
+                    uploaded_dir.mkdir(parents=True, exist_ok=True)
+
+                    # Move file while preserving relative structure within to_upload
+                    to_upload_dir = course_dir / 'to_upload'
+                    relative_path = file_path.relative_to(to_upload_dir)
+                    destination = uploaded_dir / relative_path
+
+                    # Create parent directories in uploaded if needed
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Move the file
+                    shutil.move(str(file_path), str(destination))
+                    logger.info(f"Moved {file_path.name} to uploaded directory")
+
+                except Exception as e:
+                    logger.warning(f"Failed to move {file_path.name}: {e}")
+
             pbar.update(1)
 
             # Brief pause to avoid rate limiting

@@ -180,11 +180,14 @@ async def question_handler(
         # Initialize Gemini client
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
+        # Add instruction to avoid LaTeX in response
+        enhanced_question = f"{question}\n\nIMPORTANT: Format all mathematical expressions using plain text or Unicode symbols (like ∑, ∫, √, ≤, ≥, etc.) instead of LaTeX. Make the answer readable in a text message."
+
         # Query File Search
         result = await _query_file_search(
             client,
             settings.FILE_SEARCH_STORE_NAME,
-            question
+            enhanced_question
         )
 
         # Handle errors from query
